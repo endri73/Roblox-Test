@@ -1,162 +1,74 @@
---[=[
-    NovaEngine Main — executor version
-    Nuk përdor script.Parent, nuk përdor require().
-    Merret si string nga loaderi, ekzekutohet me loadstring.
-    Kthen funksion që pranon deps dhe ndërton GUI-n + loop-in.
-]=]
+-- NovaEngine main.lua — entry point (ky është file që ekzekutohet nga executor)
+local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/main/Rivals/NovaEngine/"
 
-return function(deps)
-    assert(type(deps) == "table", "main.lua: deps table mungon")
+local Cache = {}
 
-    local Config              = assert(deps.Config, "Config mungon")
-    local AimbotLogic         = assert(deps.AimbotLogic, "AimbotLogic mungon")
-    local FOVLogic            = assert(deps.FOVLogic, "FOVLogic mungon")
-    local MarkersLogic        = assert(deps.MarkersLogic, "MarkersLogic mungon")
-    local DistanceLogic       = assert(deps.DistanceLogic, "DistanceLogic mungon")
-    local DisplayRangeLogic   = assert(deps.DisplayRangeLogic, "DisplayRangeLogic mungon")
-    local InterfaceScaleLogic = assert(deps.InterfaceScaleLogic, "InterfaceScaleLogic mungon")
+local function HttpGet(url)
+    if game.HttpGet then return game.HttpGet(url) end
+    if request then return request({ Url = url, Method = "GET" }).Body end
+    if http_request then return http_request({ Url = url, Method = "GET" }).Body end
+    error("asnjë metodë HTTP në këtë executor")
+end
 
-    local Players          = game:GetService("Players")
-    local UserInputService = game:GetService("UserInputService")
-    local RunService       = game:GetService("RunService")
+local function LoadModule(path)
+    if Cache[path] ~= nil then return Cache[path] end
+    local url = BASE .. path
 
-    local LocalPlayer = Players.LocalPlayer
-    local playerGui   = LocalPlayer:WaitForChild("PlayerGui")
+    local ok, src = pcall(HttpGet, url)
+    if not ok or type(src) ~= "string" or #src < 20 then
+        warn("[NOVA] fetch fail " .. path .. " :: " .. tostring(src))
+        return nil
+    end
+    if src:sub(1, 1) == "<" then
+        warn("[NOVA] HTML error page " .. path)
+        return nil
+    end
 
-    -- pastro GUI të vjetër nëse ekzekutohet dy herë
-    local old = playerGui:FindFirstChild("NovaUI")
-    if old then old:Destroy() end
+    local fn, cerr = loadstring(src, "@" .. path)
+    if not fn then
+        warn("[NOVA] compile fail " .. path .. " :: " .. tostring(cerr))
+        return nil
+    end
 
-    -- ===== GUI kryesor =====
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "NovaUI"
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = playerGui
+    local rok, res = pcall(fn)
+    if not rok then
+        warn("[NOVA] runtime fail " .. path .. " :: " .. tostring(res))
+        return nil
+    end
 
-    local main = Instance.new("Frame")
-    main.Name = "Main"
-    main.AnchorPoint = Vector2.new(0.5, 0.5)
-    main.Position = UDim2.fromScale(0.5, 0.5)
-    main.Size = UDim2.fromScale(0.82, 0.78)
-    main.BackgroundColor3 = Color3.fromRGB(13, 13, 17)
-    main.BackgroundTransparency = 0.05
-    main.BorderSizePixel = 0
-    main.Visible = true
-    main.Parent = gui
+    Cache[path] = res
+    return res
+end
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = main
+local function Need(path)
+    local m = LoadModule(path)
+    if m == nil then error("[NOVA] required module missing: " .. path) end
+    return m
+end
 
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Config.ThemeAccent
-    stroke.Thickness = 1
-    stroke.Transparency = 0.4
-    stroke.Parent = main
+-- 1) modulet
+local Config              = Need("Config.lua")
+local AimbotLogic         = Need("Aimbot/Aimbot.lua")
+local FOVLogic            = Need("Aimbot/FOV.lua")
+local MarkersLogic        = Need("ESP/Markers.lua")
+local DistanceLogic       = Need("ESP/Distance.lua")
+local DisplayRangeLogic   = Need("ESP/DisplayRange.lua")
+local InterfaceScaleLogic = Need("Settings/InterfaceScale.lua")
 
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.BackgroundTransparency = 1
-    title.Position = UDim2.new(0, 16, 0, 10)
-    title.Size = UDim2.new(1, -32, 0, 28)
-    title.Font = Enum.Font.GothamBold
-    title.Text = "NOVA ENGINE"
-    title.TextColor3 = Config.ThemeAccent
-    title.TextSize = 18
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = main
+-- 2) GUI builder — quhet GUI.lua, jo Main.lua
+local GUIBuilder = Need("GUI.lua")
+local ok, handle = pcall(GUIBuilder, {
+    Config              = Config,
+    AimbotLogic         = AimbotLogic,
+    FOVLogic            = FOVLogic,
+    MarkersLogic        = MarkersLogic,
+    DistanceLogic       = DistanceLogic,
+    DisplayRangeLogic   = DisplayRangeLogic,
+    InterfaceScaleLogic = InterfaceScaleLogic,
+})
 
-    local body = Instance.new("TextLabel")
-    body.Name = "Body"
-    body.BackgroundTransparency = 1
-    body.Position = UDim2.new(0, 16, 0, 44)
-    body.Size = UDim2.new(1, -32, 1, -60)
-    body.Font = Enum.Font.Gotham
-    body.Text = "Nova Engine aktiv.\nRightShift për të hapur/mbyllur."
-    body.TextColor3 = Color3.fromRGB(200, 200, 210)
-    body.TextSize = 14
-    body.TextXAlignment = Enum.TextXAlignment.Left
-    body.TextYAlignment = Enum.TextYAlignment.Top
-    body.TextWrapped = true
-    body.Parent = main
-
-    local uiScale = Instance.new("UIScale")
-    uiScale.Scale = InterfaceScaleLogic.GetScale(Config.InterfaceScale)
-    uiScale.Parent = main
-
-    -- ===== toggle key =====
-    local toggleConn
-    toggleConn = UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Config.ToggleKey then
-            main.Visible = not main.Visible
-        end
-    end)
-
-    -- ===== main loop =====
-    local renderConn
-    renderConn = RunService.RenderStepped:Connect(function()
-        -- sigurohemi që GUI ekziston ende
-        if not gui.Parent then
-            if renderConn then renderConn:Disconnect() end
-            if toggleConn then toggleConn:Disconnect() end
-            return
-        end
-
-        -- FOV update vetëm kur GUI i dukshëm
-        pcall(function()
-            FOVLogic.Update(Config, main.Visible)
-        end)
-
-        -- Aimbot step
-        pcall(function()
-            AimbotLogic.Step(Config)
-        end)
-
-        -- ESP për çdo lojtar
-        local cam = workspace.CurrentCamera
-        if cam then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local char = p.Character
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        local ok, err = pcall(function()
-                            local dist = DistanceLogic.Calculate(cam, hrp.Position)
-                            local inRange = DisplayRangeLogic.IsInRange(dist, Config.DisplayRange)
-                            local shouldShow = Config.ShowMarkers and inRange
-                            MarkersLogic.ApplyHighlight(char, shouldShow, Config.MarkerColor)
-                        end)
-                        if not ok then
-                            -- heshtur; mos e mbush konsolën çdo frame
-                        end
-                    else
-                        MarkersLogic.ApplyHighlight(char, false, Config.MarkerColor)
-                    end
-                end
-            end
-        end
-    end)
-
-    -- ===== cleanup automatik kur lojtari largohet / respawn =====
-    LocalPlayer.OnTeleport:Connect(function()
-        if renderConn then renderConn:Disconnect() end
-        if toggleConn then toggleConn:Disconnect() end
-        pcall(function() FOVLogic.Destroy() end)
-        gui:Destroy()
-    end)
-
-    -- kthe handle nëse do t'i përdorësh jashtë
-    return {
-        Gui = gui,
-        Main = main,
-        Disconnect = function()
-            if renderConn then renderConn:Disconnect() end
-            if toggleConn then toggleConn:Disconnect() end
-            pcall(function() FOVLogic.Destroy() end)
-            gui:Destroy()
-        end,
-    }
+if ok then
+    print("[NOVA] GUI u ndërtua me sukses")
+else
+    warn("[NOVA] GUI dështoi: " .. tostring(handle))
 end
