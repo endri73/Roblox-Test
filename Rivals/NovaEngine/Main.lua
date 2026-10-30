@@ -1,4 +1,4 @@
-local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/main/Rivals/NovaEngine/"
+local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/Rivals/NovaEngine/Main.lua"
 local Cache = {}
 local FAIL  = {}
 
