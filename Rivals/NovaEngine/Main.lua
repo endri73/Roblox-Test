@@ -1,4 +1,4 @@
-local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/Rivals/NovaEngine/"
+local BASE  = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/Rivals/NovaEngine/"
 local Cache = {}
 local FAIL  = {}
 
@@ -49,12 +49,11 @@ local ok, err = pcall(function()
     local BuildTheme = Need("Core/Theme.lua")
     local BuildH     = Need("Core/Helpers.lua")
 
-    local theme  = BuildTheme(config)
-    local H      = BuildH(theme)
-    local tween  = H.Tween(config, TweenService)
+    local theme = BuildTheme(config)
+    local H     = BuildH(theme)
+    local tween = H.Tween(config, TweenService)
 
-    local BuildGUI = Need("GUI/Builder.lua")
-    local refs     = BuildGUI(H, theme, config)
+    local refs  = Need("GUI/Builder.lua")(H, theme, config)
 
     local function CreatePage(name)
         local page = H.Create("ScrollingFrame", {
@@ -82,35 +81,41 @@ local ok, err = pcall(function()
         Settings = CreatePage("Settings"),
     }
 
-    local MakeToggle            = Need("GUI/Widgets/Toggle.lua")(H, theme, tween)
-    local MakeSlider            = Need("GUI/Widgets/Slider.lua")(H, theme, tween)
-    local MakeDropdown          = Need("GUI/Widgets/Dropdown.lua")(H, theme)
-    local MakeKeybind           = Need("GUI/Widgets/Keybind.lua")(H, theme)
+    local MakeToggle             = Need("GUI/Widgets/Toggle.lua")(H, theme, tween)
+    local MakeSlider             = Need("GUI/Widgets/Slider.lua")(H, theme, tween)
+    local MakeDropdown           = Need("GUI/Widgets/Dropdown.lua")(H, theme)
+    local MakeKeybind            = Need("GUI/Widgets/Keybind.lua")(H, theme)
     local MakeColor, ApplyAccent = Need("GUI/Widgets/ColorPicker.lua")(H, theme, tween, refs.gui)
 
     local fov = Need("Aimbot/FOV.lua")(config)
 
     local controls = {}
-    controls.AimbotEnabled   = MakeToggle(pages.Aimbot,   "Enable Feature",   false, "AimbotEnabled",   config)
-    controls.FieldOfView     = MakeSlider(pages.Aimbot,   "Field of View",    10, 300, 90,  "FieldOfView",    config)
-    controls.Sensitivity     = MakeSlider(pages.Aimbot,   "Sensitivity",      1,  100, 50,  "Sensitivity",    config)
-    controls.TargetMode      = MakeDropdown(pages.Aimbot, "Target Mode",      {"Default","Nearest","Custom"}, "TargetMode", config)
-    controls.AimbotAccent    = MakeColor(pages.Aimbot,    "Accent Color",     "AimbotAccent", config)
 
-    controls.ShowMarkers     = MakeToggle(pages.ESP,      "Show Markers",     true,  "ShowMarkers",  config)
-    controls.ShowNames       = MakeToggle(pages.ESP,      "Show Names",       true,  "ShowNames",    config)
-    controls.ShowDistance    = MakeToggle(pages.ESP,      "Show Distance",    false, "ShowDistance", config)
-    controls.MarkerColor     = MakeColor(pages.ESP,       "Marker Color",     "MarkerColor", config)
-    controls.DisplayRange    = MakeSlider(pages.ESP,      "Display Range",    50, 1000, 500, "DisplayRange", config)
+    -- Aimbot tab
+    controls.AimbotEnabled = MakeToggle(pages.Aimbot, "Enable Aimbot",   false, "AimbotEnabled",  config)
+    controls.FieldOfView   = MakeSlider(pages.Aimbot, "Field of View",   10, 300, 90, "FieldOfView",   config)
+    controls.Sensitivity   = MakeSlider(pages.Aimbot, "Sensitivity",     1, 100,  50, "Sensitivity",   config)
+    controls.AimbotMode    = MakeDropdown(pages.Aimbot, "Aimbot Mode",   {"Head","Body"}, "AimbotMode", config)
+    controls.AimbotAccent  = MakeColor(pages.Aimbot,  "FOV Color",       "AimbotAccent", config,
+        function(col) fov.Raw.Color = col end)
 
-    controls.UIAnimations    = MakeToggle(pages.Settings, "UI Animations",    true,  "UIAnimations",    config)
-    controls.PerformanceMode = MakeToggle(pages.Settings, "Performance Mode", false, "PerformanceMode", config)
-    controls.InterfaceScale  = MakeDropdown(pages.Settings, "Interface Scale",
-        {"Smaller","Small","Medium"}, "InterfaceScale", config,
+    -- ESP tab
+    controls.ShowMarkers   = MakeToggle(pages.ESP, "Show Markers",       true,  "ShowMarkers",  config)
+    controls.ShowNames     = MakeToggle(pages.ESP, "Show Names",         true,  "ShowNames",    config)
+    controls.ShowDistance  = MakeToggle(pages.ESP, "Show Distance",      false, "ShowDistance", config)
+    controls.ShowLines     = MakeToggle(pages.ESP, "Show Lines",         false, "ShowLines",    config)
+    controls.ShowSkeleton  = MakeToggle(pages.ESP, "Show Skeleton",      false, "ShowSkeleton", config)
+    controls.MarkerColor   = MakeColor(pages.ESP,  "Marker Color",       "MarkerColor",  config)
+    controls.LineColor     = MakeColor(pages.ESP,  "Line Color",         "LineColor",    config)
+    controls.SkeletonColor = MakeColor(pages.ESP,  "Skeleton Color",     "SkeletonColor",config)
+
+    -- Settings tab
+    controls.InterfaceScale = MakeDropdown(pages.Settings, "Interface Scale",
+        {"Small","Medium","Big"}, "InterfaceScale", config,
         Need("Settings/InterfaceScale.lua")(refs.uiScale, tween))
-    controls.ToggleKey       = MakeKeybind(pages.Settings, "Toggle GUI Key",  "ToggleKey", config)
-    controls.ThemeAccent     = MakeColor(pages.Settings,  "Theme Accent",     "ThemeAccent", config,
-        function(color) ApplyAccent(color, refs.mainStroke, refs.logo, fov.Raw, pages) end)
+    controls.ToggleKey      = MakeKeybind(pages.Settings, "Toggle GUI Key", "ToggleKey", config)
+    controls.ThemeAccent    = MakeColor(pages.Settings, "Theme Accent",  "ThemeAccent", config,
+        function(col) ApplyAccent(col, refs.mainStroke, refs.logo, fov.Raw, pages) end)
 
     local closeHandle = Need("GUI/CloseModal.lua")(H, theme, tween, refs.main, refs.gui, controls, fov.Raw, config)
     refs.close.MouseButton1Click:Connect(closeHandle.showWarning)
@@ -122,7 +127,9 @@ local ok, err = pcall(function()
     local espCache = {}
     local Markers  = Need("ESP/Markers.lua")
     local Distance = Need("ESP/Distance.lua")
-    Need("ESP/DisplayRange.lua")(config, espCache, Markers, Distance, closeHandle.closed)
+    local Lines    = Need("ESP/Lines.lua")()
+    local Skeleton = Need("ESP/Skeleton.lua")()
+    Need("ESP/DisplayRange.lua")(config, espCache, Markers, Distance, Lines, Skeleton, closeHandle.closed)
 
     Need("Aimbot/Aimbot.lua")(config, fov, refs.main, closeHandle.closed)
     Need("Settings/Keybind.lua")(config, refs.main)
@@ -131,17 +138,17 @@ local ok, err = pcall(function()
 end)
 
 if not ok then
-    local sg = Instance.new("ScreenGui")
-    sg.Name        = "NovaBootError"
-    sg.ResetOnSpawn = false
-    sg.Parent      = game:GetService("CoreGui")
-    local lbl      = Instance.new("TextLabel")
-    lbl.Size       = UDim2.new(1, 0, 0, 80)
-    lbl.Position   = UDim2.new(0, 0, 0.45, 0)
+    local sg             = Instance.new("ScreenGui")
+    sg.Name              = "NovaBootError"
+    sg.ResetOnSpawn      = false
+    sg.Parent            = game:GetService("CoreGui")
+    local lbl            = Instance.new("TextLabel")
+    lbl.Size             = UDim2.new(1, 0, 0, 80)
+    lbl.Position         = UDim2.new(0, 0, 0.45, 0)
     lbl.BackgroundColor3 = Color3.fromRGB(18, 0, 0)
-    lbl.TextColor3 = Color3.fromRGB(255, 80, 80)
-    lbl.TextScaled = true
-    lbl.TextWrapped = true
-    lbl.Text       = "[NOVA BOOT ERROR] " .. tostring(err)
-    lbl.Parent     = sg
+    lbl.TextColor3       = Color3.fromRGB(255, 80, 80)
+    lbl.TextScaled       = true
+    lbl.TextWrapped      = true
+    lbl.Text             = "[NOVA BOOT ERROR] " .. tostring(err)
+    lbl.Parent           = sg
 end
