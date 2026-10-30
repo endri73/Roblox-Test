@@ -1,10 +1,13 @@
--- NovaEngine main.lua — entry point (ky është file që ekzekutohet nga executor)
+--[=[
+    NovaEngine main.lua — entry point (Rregulluar dhe Pastruar)
+]=]
+
 local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/main/Rivals/NovaEngine/"
 
 local Cache = {}
 
 local function HttpGet(url)
-    if game.HttpGet then return game.HttpGet(url) end
+    if game.HttpGet then return game.HttpGet(game, url) end
     if request then return request({ Url = url, Method = "GET" }).Body end
     if http_request then return http_request({ Url = url, Method = "GET" }).Body end
     error("asnjë metodë HTTP në këtë executor")
@@ -14,8 +17,8 @@ local function LoadModule(path)
     if Cache[path] ~= nil then return Cache[path] end
     local url = BASE .. path
 
-    local ok, src = pcall(HttpGet, url)
-    if not ok or type(src) ~= "string" or #src < 20 then
+    local ok, src = pcall(function() return HttpGet(url) end)
+    if not ok or type(src) ~= "string" or #src < 10 then
         warn("[NOVA] fetch fail " .. path .. " :: " .. tostring(src))
         return nil
     end
@@ -46,7 +49,7 @@ local function Need(path)
     return m
 end
 
--- 1) modulet
+-- 1) Ngarkimi i moduleve
 local Config              = Need("Config.lua")
 local AimbotLogic         = Need("Aimbot/Aimbot.lua")
 local FOVLogic            = Need("Aimbot/FOV.lua")
@@ -55,17 +58,32 @@ local DistanceLogic       = Need("ESP/Distance.lua")
 local DisplayRangeLogic   = Need("ESP/DisplayRange.lua")
 local InterfaceScaleLogic = Need("Settings/InterfaceScale.lua")
 
--- 2) GUI builder — quhet GUI.lua, jo Main.lua
+-- 2) Ngarkimi i GUI.lua
 local GUIBuilder = Need("GUI.lua")
-local ok, handle = pcall(GUIBuilder, {
-    Config              = Config,
-    AimbotLogic         = AimbotLogic,
-    FOVLogic            = FOVLogic,
-    MarkersLogic        = MarkersLogic,
-    DistanceLogic       = DistanceLogic,
-    DisplayRangeLogic   = DisplayRangeLogic,
-    InterfaceScaleLogic = InterfaceScaleLogic,
-})
+
+local ok, handle = pcall(function()
+    if type(GUIBuilder) == "function" then
+        return GUIBuilder({
+            Config              = Config,
+            AimbotLogic         = AimbotLogic,
+            FOVLogic            = FOVLogic,
+            MarkersLogic        = MarkersLogic,
+            DistanceLogic       = DistanceLogic,
+            DisplayRangeLogic   = DisplayRangeLogic,
+            InterfaceScaleLogic = InterfaceScaleLogic,
+        })
+    elseif type(GUIBuilder) == "table" and GUIBuilder.Init then
+        return GUIBuilder.Init({
+            Config              = Config,
+            AimbotLogic         = AimbotLogic,
+            FOVLogic            = FOVLogic,
+            MarkersLogic        = MarkersLogic,
+            DistanceLogic       = DistanceLogic,
+            DisplayRangeLogic   = DisplayRangeLogic,
+            InterfaceScaleLogic = InterfaceScaleLogic,
+        })
+    end
+end)
 
 if ok then
     print("[NOVA] GUI u ndërtua me sukses")
