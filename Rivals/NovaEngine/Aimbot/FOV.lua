@@ -1,14 +1,14 @@
-local UIS    = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 
 local function Build(config)
-    local circle      = Drawing.new("Circle")
-    circle.Visible    = false
-    circle.Transparency = 0.7
-    circle.Thickness  = 1.5
-    circle.Color      = config.AimbotAccent
-    circle.Filled     = false
+    local circle         = Drawing.new("Circle")
+    circle.Visible       = false
+    circle.Transparency  = 0.7
+    circle.Thickness     = 1.5
+    circle.Color         = config.AimbotAccent
+    circle.Filled        = false
 
-    local function Update(mainVisible)
+    local function Update()
         if not config.AimbotEnabled then
             circle.Visible = false
             return
@@ -16,7 +16,7 @@ local function Build(config)
         circle.Position = UIS:GetMouseLocation()
         circle.Radius   = config.FieldOfView
         circle.Color    = config.AimbotAccent
-        circle.Visible  = mainVisible
+        circle.Visible  = true  -- gjithmonë visible kur aimbot on, pavarësisht GUI
     end
 
     local function Destroy()
