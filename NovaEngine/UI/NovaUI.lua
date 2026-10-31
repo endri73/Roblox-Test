@@ -47,7 +47,8 @@ local activePopup = nil
 
 local function closePopup()
 	if activePopup then
-		activePopup:Destroy()
+		if activePopup.backdrop then activePopup.backdrop:Destroy() end
+		if activePopup.popup then activePopup.popup:Destroy() end
 		activePopup = nil
 	end
 end
@@ -177,7 +178,6 @@ local function createSlider(parent, text, minValue, maxValue, default, order, ca
 		BorderSizePixel = 0,
 	})
 	fill.Parent = track
-	create("UICorner", { CornerRadius = UDim.new(1, 0) }).Parent = track
 	create("UICorner", { CornerRadius = UDim.new(1, 0) }).Parent = fill
 
 	local dragging = false
@@ -399,12 +399,11 @@ local function createColorRow(parent, gui, text, defaultColor, order, callback)
 			end
 		end
 
-		backdrop.Activated:Connect(closePopup)
-		activePopup = create("Folder")
-		activePopup.Name = "PalettePopup"
-		activePopup.Parent = gui
-		backdrop.Parent = activePopup
-		popup.Parent = activePopup
+		backdrop.Activated:Connect(function()
+			closePopup()
+		end)
+
+		activePopup = { popup = popup, backdrop = backdrop }
 	end)
 
 	return row
@@ -482,6 +481,8 @@ function NovaUI.new(config)
 	self._tabs = {}
 	self._activeTab = nil
 	self.Keybind = nil
+	self._closed = false
+	self._modal = nil
 
 	local gui = create("ScreenGui", {
 		Name = "NovaUI",
@@ -524,6 +525,8 @@ function NovaUI.new(config)
 	local window = create("Frame", {
 		Name = "Window",
 		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = Theme.Background,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -584,7 +587,7 @@ function NovaUI.new(config)
 		tween(close, { BackgroundTransparency = 1, TextColor3 = Theme.Muted }, 0.15)
 	end)
 	close.Activated:Connect(function()
-		self:Close()
+		self:_showCloseWarning()
 	end)
 
 	local sidebar = create("Frame", {
@@ -762,7 +765,7 @@ function NovaUI.new(config)
 	end)
 
 	-- Settings page
-	createSegmented(self._pages.settings, "Interface Scale", { "Small", "Medium", "Big" }, "Medium", 1, function(option)
+	createSegmented(self._pages.settings, "Interface Scale", { "Small", "Medium", "Big" }, "Small", 1, function(option)
 		self:SetScale(option)
 		if onChoice then onChoice("scale", option) end
 	end)
@@ -832,16 +835,17 @@ function NovaUI:SelectTab(id)
 end
 
 function NovaUI:SetScale(option)
-	local value = 1
-	if option == "Small" then
-		value = 0.85
-	elseif option == "Big" then
+	local value = 1.0
+	if option == "Medium" then
 		value = 1.15
+	elseif option == "Big" then
+		value = 1.35
 	end
 	tween(self.Scale, { Scale = value }, 0.2)
 end
 
 function NovaUI:Open()
+	if self._closed then return end
 	self.Gui.Enabled = true
 	self.Window.Size = UDim2.fromScale(0.92, 0.92)
 	tween(self.Window, { Size = UDim2.fromScale(1, 1) }, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -854,7 +858,141 @@ function NovaUI:Close()
 	end)
 end
 
+function NovaUI:_closeModal()
+	if self._modal then
+		self._modal:Destroy()
+		self._modal = nil
+	end
+end
+
+function NovaUI:_shutdown()
+	if self._closed then return end
+	self._closed = true
+
+	if self._keyConnection then
+		self._keyConnection:Disconnect()
+		self._keyConnection = nil
+	end
+
+	if self._config and self._config.onClose then
+		local ok, err = pcall(self._config.onClose)
+		if not ok then
+			warn("[NovaEngine] onClose failed: " .. tostring(err))
+		end
+	end
+
+	self:_closeModal()
+
+	if self.Gui then
+		self.Gui.Enabled = false
+	end
+end
+
+function NovaUI:_showCloseWarning()
+	if self._modal then
+		return
+	end
+
+	local backdrop = create("TextButton", {
+		Name = "ModalBackdrop",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 200,
+	})
+	backdrop.Parent = self.Gui
+	self._modal = backdrop
+
+	local panel = create("Frame", {
+		Name = "ModalPanel",
+		Size = UDim2.fromOffset(420, 196),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BorderSizePixel = 0,
+		ZIndex = 201,
+	})
+	panel.Parent = backdrop
+	create("UICorner", { CornerRadius = UDim.new(0, 12) }).Parent = panel
+	create("UIStroke", { Color = Theme.Stroke, Thickness = 1 }).Parent = panel
+
+	local title = create("TextLabel", {
+		Size = UDim2.new(1, -36, 0, 28),
+		Position = UDim2.fromOffset(18, 16),
+		BackgroundTransparency = 1,
+		Font = FONT_BOLD,
+		Text = "Close NovaEngine?",
+		TextColor3 = Theme.Text,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 202,
+	})
+	title.Parent = panel
+
+	local message = create("TextLabel", {
+		Size = UDim2.new(1, -36, 0, 64),
+		Position = UDim2.fromOffset(18, 50),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		Text = "All features will be disabled and the interface will be closed. To use the script again you must run the loader from the start.",
+		TextColor3 = Theme.Muted,
+		TextSize = 13,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		ZIndex = 202,
+	})
+	message.Parent = panel
+
+	local cancel = create("TextButton", {
+		Size = UDim2.fromOffset(120, 34),
+		Position = UDim2.new(1, -158, 1, -52),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0,
+		Text = "Cancel",
+		Font = FONT,
+		TextSize = 13,
+		TextColor3 = Theme.Text,
+		AutoButtonColor = false,
+		ZIndex = 202,
+	})
+	cancel.Parent = panel
+	create("UICorner", { CornerRadius = UDim.new(0, 8) }).Parent = cancel
+	create("UIStroke", { Color = Theme.Stroke, Thickness = 1, Transparency = 0.4 }).Parent = cancel
+
+	local confirm = create("TextButton", {
+		Size = UDim2.fromOffset(120, 34),
+		Position = UDim2.new(1, -18, 1, -52),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundColor3 = Theme.Danger,
+		BorderSizePixel = 0,
+		Text = "Close",
+		Font = FONT_BOLD,
+		TextSize = 13,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		AutoButtonColor = false,
+		ZIndex = 202,
+	})
+	confirm.Parent = panel
+	create("UICorner", { CornerRadius = UDim.new(0, 8) }).Parent = confirm
+
+	cancel.Activated:Connect(function()
+		self:_closeModal()
+	end)
+
+	confirm.Activated:Connect(function()
+		self:_shutdown()
+	end)
+
+	backdrop.Activated:Connect(function()
+		self:_closeModal()
+	end)
+end
+
 function NovaUI:Toggle()
+	if self._closed then return end
 	if self.Gui.Enabled then
 		self:Close()
 	else
@@ -872,6 +1010,7 @@ end
 
 function NovaUI:Destroy()
 	closePopup()
+	self:_closeModal()
 	if self._keyConnection then
 		self._keyConnection:Disconnect()
 	end
