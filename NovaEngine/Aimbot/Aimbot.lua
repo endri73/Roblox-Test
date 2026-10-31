@@ -1,6 +1,7 @@
 --!nonstrict
 -- NovaEngine/Aimbot/Aimbot.lua
--- Mouse aim: moves the cursor toward the target. Camera lerp as fallback.
+-- Mouse aim: moves the cursor toward the target while the right mouse button
+-- is held. Camera lerp as fallback when the executor blocks mousemoverel.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -21,6 +22,7 @@ function Aimbot.new(config)
 	local self = setmetatable({}, Aimbot)
 	self.Config = {
 		Enabled = false,
+		RequireRightClick = true,
 		FOVRadius = 120,
 		TargetPart = "Head", -- "Head" or "Body"
 		Smoothing = 0.28,
@@ -32,6 +34,9 @@ function Aimbot.new(config)
 	end
 	self.Target = nil
 	self._connection = nil
+	self._inputBegan = nil
+	self._inputEnded = nil
+	self._rightDown = false
 	return self
 end
 
@@ -90,8 +95,21 @@ end
 
 function Aimbot:Start()
 	if self._connection then return end
+
+	self._inputBegan = UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			self._rightDown = true
+		end
+	end)
+	self._inputEnded = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			self._rightDown = false
+		end
+	end)
+
 	self._connection = RunService.RenderStepped:Connect(function()
 		if not self.Config.Enabled then return end
+		if self.Config.RequireRightClick and not self._rightDown then return end
 		if UserInputService:GetFocusedTextBox() then return end
 
 		local camera = Workspace.CurrentCamera
@@ -117,6 +135,15 @@ function Aimbot:Stop()
 		self._connection:Disconnect()
 		self._connection = nil
 	end
+	if self._inputBegan then
+		self._inputBegan:Disconnect()
+		self._inputBegan = nil
+	end
+	if self._inputEnded then
+		self._inputEnded:Disconnect()
+		self._inputEnded = nil
+	end
+	self._rightDown = false
 	self.Target = nil
 end
 
