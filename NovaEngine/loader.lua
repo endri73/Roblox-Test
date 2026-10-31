@@ -150,6 +150,15 @@ local function start()
 				fov:SetColor(color)
 			end
 		end,
+		onClose = function()
+			aimbot:SetEnabled(false)
+			fov:SetVisible(false)
+			esp:SetOption("ShowMarkers", false)
+			esp:SetOption("ShowNames", false)
+			esp:SetOption("ShowDistance", false)
+			esp:SetOption("ShowLines", false)
+			esp:SetOption("ShowSkeleton", false)
+		end,
 	})
 
 	_G.NovaEngine = {
