@@ -306,9 +306,9 @@ local function Build(H, theme, tween, gui)
                     onChanged(col)
                 end
             end)
+            SetPanelPosition(activePanel, preview)
         end)
-
-        return preview
+        return card
     end
 
     return CreateColorPicker, ApplyAccent
