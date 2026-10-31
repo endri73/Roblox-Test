@@ -2,27 +2,17 @@
 -- NovaEngine/loader.lua
 -- Entry point. Ekzekuto:
 --   loadstring(game:HttpGet("https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/NovaEngine/loader.lua"))()
--- Merr Main.client.lua + të gjithë modulet nga i njëjti repo dhe nis UI-në.
+-- Merr modulet direkt nga repo-ja dhe i nis — pa require, pa ModuleScript.
 
 local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/NovaEngine/"
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 
-local MODULES = {
-	{ folder = "Loading", name = "LoadingScreen", path = "Loading/LoadingScreen.lua" },
-	{ folder = "UI",      name = "NovaUI",        path = "UI/NovaUI.lua" },
-	{ folder = "Aimbot",  name = "Aimbot",        path = "Aimbot/Aimbot.lua" },
-	{ folder = "Aimbot",  name = "FOV",           path = "Aimbot/FOV.lua" },
-	{ folder = "ESP",     name = "Markers",       path = "ESP/Markers.lua" },
-}
-
-local fetch = game.HttpGet
 local compile = loadstring or load
+local fetch = game.HttpGet
 
-assert(type(fetch) == "function", "[NovaEngine] game:HttpGet nuk ekziston — ekzekutoje në executor.")
-assert(type(compile) == "function", "[NovaEngine] loadstring nuk ekziston — ekzekutoje në executor.")
+assert(type(fetch) == "function", "[NovaEngine] game:HttpGet mungon — hape në client executor.")
+assert(type(compile) == "function", "[NovaEngine] loadstring mungon — hape në client executor.")
 
 local function httpGet(path)
 	local url = BASE .. path
@@ -33,8 +23,35 @@ local function httpGet(path)
 	return body
 end
 
-local function clearOld()
-	local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local function loadModule(path)
+	local source = httpGet(path)
+	local chunk, compileErr = compile(source, path)
+	if not chunk then
+		error(("[NovaEngine] Compile failed: %s\n%s"):format(path, tostring(compileErr)), 0)
+	end
+	local ok, result = pcall(chunk)
+	if not ok then
+		error(("[NovaEngine] Module error: %s\n%s"):format(path, tostring(result)), 0)
+	end
+	if type(result) ~= "table" then
+		error(("[NovaEngine] %s nuk ktheu table."):format(path), 0)
+	end
+	return result
+end
+
+local function waitForLocalPlayer()
+	local player = Players.LocalPlayer
+	local deadline = os.clock() + 8
+	while not player and os.clock() < deadline do
+		task.wait(0.1)
+		player = Players.LocalPlayer
+	end
+	assert(player, "[NovaEngine] LocalPlayer nil — hape në client, jo në server.")
+	return player
+end
+
+local function clearOld(player)
+	local playerGui = player:WaitForChild("PlayerGui")
 	for _, name in ipairs({ "NovaUI", "NovaLoading", "NovaFOV" }) do
 		local existing = playerGui:FindFirstChild(name)
 		if existing then
@@ -43,56 +60,65 @@ local function clearOld()
 	end
 end
 
-local function buildModules()
-	local old = ReplicatedStorage:FindFirstChild("NovaEngine")
-	if old then
-		old:Destroy()
+local function start()
+	local player = waitForLocalPlayer()
+	clearOld(player)
+
+	local LoadingScreen = loadModule("Loading/LoadingScreen.lua")
+	local NovaUI = loadModule("UI/NovaUI.lua")
+	local Aimbot = loadModule("Aimbot/Aimbot.lua")
+	local FOV = loadModule("Aimbot/FOV.lua")
+	local Markers = loadModule("ESP/Markers.lua")
+
+	local loading = LoadingScreen.new()
+	local steps = {
+		{ text = "Duke inicializuar engine...", target = 20 },
+		{ text = "Duke ngarkuar UI...", target = 45 },
+		{ text = "Duke ngarkuar Aimbot...", target = 65 },
+		{ text = "Duke ngarkuar ESP...", target = 85 },
+		{ text = "Duke përfunduar...", target = 100 },
+	}
+	for _, step in ipairs(steps) do
+		loading:SetStatus(step.text)
+		loading:SetProgress(step.target)
+		task.wait(0.45)
 	end
+	loading:Finish()
 
-	local root = Instance.new("Folder")
-	root.Name = "NovaEngine"
-	root.Parent = ReplicatedStorage
+	local aimbot = Aimbot.new()
+	local fov = FOV.new(120)
+	local markers = Markers.new()
+	fov:SetVisible(false)
 
-	local folders = {}
-	local function getFolder(name)
-		if not folders[name] then
-			local folder = Instance.new("Folder")
-			folder.Name = name
-			folder.Parent = root
-			folders[name] = folder
-		end
-		return folders[name]
-	end
+	local ui
+	ui = NovaUI.new({
+		onToggle = function(id, state)
+			if id == "aimbot" then
+				aimbot:SetEnabled(state)
+				fov:SetVisible(state)
+			elseif id == "esp" then
+				markers:SetEnabled(state)
+			end
+		end,
+		onSlider = function(id, value)
+			if id == "fov" then
+				fov:SetRadius(value)
+				aimbot.Config.MaxDistance = value * 6
+			elseif id == "opacity" then
+				ui.Window.BackgroundTransparency = 1 - (value / 100)
+			end
+		end,
+	})
 
-	for _, spec in ipairs(MODULES) do
-		local source = httpGet(spec.path)
-		local module = Instance.new("ModuleScript")
-		module.Name = spec.name
-		module.Source = source
-		module.Parent = getFolder(spec.folder)
-	end
-
-	return root
+	_G.NovaEngine = {
+		UI = ui,
+		Aimbot = aimbot,
+		FOV = fov,
+		Markers = markers,
+	}
 end
 
-local function runMain()
-	local source = httpGet("Main.client.lua")
-	local chunk, err = compile(source, "NovaEngine/Main.client.lua")
-	if not chunk then
-		error("[NovaEngine] Compile failed: " .. tostring(err), 0)
-	end
-	local ok, runErr = pcall(chunk)
-	if not ok then
-		error("[NovaEngine] Runtime error: " .. tostring(runErr), 0)
-	end
-end
-
-local ok, err = pcall(function()
-	clearOld()
-	buildModules()
-	runMain()
-end)
-
+local ok, err = pcall(start)
 if not ok then
 	warn("[NovaEngine] " .. tostring(err))
 	return false
