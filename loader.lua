@@ -1,10 +1,10 @@
 --!nonstrict
 -- NovaEngine/loader.lua
 -- Entry point. Execute:
---   loadstring(game:HttpGet("https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/NovaEngine/loader.lua"))()
+--   loadstring(game:HttpGet("https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/loader.lua"))()
 -- Loads every module from the repo and starts the UI.
 
-local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/NovaEngine/"
+local BASE = "https://raw.githubusercontent.com/endri73/Roblox-Test/refs/heads/main/loader.lua/"
 
 local Players = game:GetService("Players")
 
