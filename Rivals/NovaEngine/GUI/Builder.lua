@@ -81,7 +81,7 @@ local function Build(H, theme, config)
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, nav)
 
-    -- Content area
+    -- Content zona kryesore
     local content = H.Create("Frame", {
         Name             = "Content",
         Position         = UDim2.new(0, 206, 0, 0),
@@ -90,6 +90,7 @@ local function Build(H, theme, config)
     }, main)
     H.Pad(content, 18)
 
+    -- Header
     local header = H.Create("Frame", {
         Size             = UDim2.new(1, 0, 0, 65),
         BackgroundTransparency = 1,
@@ -114,9 +115,11 @@ local function Build(H, theme, config)
         TextXAlignment   = Enum.TextXAlignment.Left,
     }, header)
 
+    -- Content area — ku shfaqen pages/tabs
     local contentArea = H.Create("Frame", {
-        Position               = UDim2.new(0, 0, 0, 75),
-        Size                   = UDim2.new(1, 0, 1, -75),
+        Name             = "ContentArea",
+        Position         = UDim2.new(0, 0, 0, 75),
+        Size             = UDim2.new(1, 0, 1, -75),
         BackgroundTransparency = 1,
     }, content)
 
@@ -134,7 +137,7 @@ local function Build(H, theme, config)
     }, main)
     H.Corner(close, 8)
 
-     return {
+    return {
         gui         = gui,
         main        = main,
         mainStroke  = mainStroke,
