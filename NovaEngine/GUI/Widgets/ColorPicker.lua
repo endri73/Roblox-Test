@@ -303,3 +303,15 @@ local function Build(H, theme, tween, gui)
                 for _, k in ipairs(keys) do config[k] = col end
                 activePanel              = nil
                 if onChanged then
+                    onChanged(col)
+                end
+            end)
+        end)
+
+        return preview
+    end
+
+    return CreateColorPicker, ApplyAccent
+end
+
+return Build
