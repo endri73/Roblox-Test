@@ -171,7 +171,15 @@ end
 
 -- ===== BUILD =====
 local ok, err = pcall(function()
-    local config     = loaded["Config.lua"]           or error("Config.lua")
+local config = loaded["Config.lua"]
+
+if config == nil then
+    error("Config.lua failed to load. Check the download and compilation errors above.")
+end
+
+if type(config) ~= "table" then
+    error("Config.lua returned " .. type(config) .. " instead of a table.")
+end
     local BuildTheme = loaded["Core/Theme.lua"]        or error("Core/Theme.lua")
     local BuildH     = loaded["Core/Helpers.lua"]      or error("Core/Helpers.lua")
 
