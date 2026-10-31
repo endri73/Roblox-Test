@@ -3,37 +3,84 @@ local Cache = {}
 local FAIL  = {}
 
 local function HttpGet(url)
-    if syn and syn.request then return syn.request({ Url = url, Method = "GET" }).Body end
-    if request      then return request(     { Url = url, Method = "GET" }).Body end
-    if http_request then return http_request({ Url = url, Method = "GET" }).Body end
-    error("[NOVA] asnjë metodë HTTP e njohur")
+    -- Synapse X / Synapse V3
+    if syn and syn.request then
+        local r = syn.request({ Url = url, Method = "GET" })
+        if r and r.Body then return r.Body end
+    end
+    -- KRNL / Fluxus / Solara / most modern executors
+    if request then
+        local r = request({ Url = url, Method = "GET" })
+        if r and r.Body then return r.Body end
+    end
+    -- older executors
+    if http_request then
+        local r = http_request({ Url = url, Method = "GET" })
+        if r and r.Body then return r.Body end
+    end
+    -- Roblox game HttpGet fallback (works in some executors)
+    if game and game.HttpGet then
+        local ok, body = pcall(function() return game:HttpGet(url, true) end)
+        if ok and body then return body end
+    end
+    -- HttpService fallback
+    local hs_ok, hs = pcall(function() return game:GetService("HttpService") end)
+    if hs_ok and hs then
+        local ok2, body2 = pcall(function() return hs:GetAsync(url) end)
+        if ok2 and body2 then return body2 end
+    end
+    error("[NOVA] asnjë metodë HTTP e njohur — executor nuk ka HTTP access")
 end
 
 local function LoadModule(path)
     if Cache[path] ~= nil then
         return Cache[path] == FAIL and nil or Cache[path]
     end
-    local ok, src = pcall(HttpGet, BASE .. path)
-    if not ok or type(src) ~= "string" or #src < 20
-    or src:find("^%s*<!") or src:find("404: Not Found") then
-        warn("[NOVA] fetch fail: " .. path .. " :: " .. tostring(src))
+
+    -- retry 3 herë me 1s pauzë midis — mbulon network hiccup dhe GitHub rate-limit
+    local ok, src
+    for attempt = 1, 3 do
+        ok, src = pcall(HttpGet, BASE .. path)
+        local valid = ok
+            and type(src) == "string"
+            and #src >= 20
+            and not src:find("^%s*<!") -- HTML error page
+            and not src:find("404: Not Found")
+            and not src:find("^%s*{}") -- bosh
+        if valid then break end
+        warn(string.format("[NOVA] fetch attempt %d/3 fail: %s :: %s", attempt, path, tostring(src)))
+        if attempt < 3 then task.wait(1.5) end
+        src = nil
+    end
+
+    if not src then
+        warn("[NOVA] fetch dështoi: " .. path)
         Cache[path] = FAIL
         return nil
     end
+
     local fn, cerr = loadstring(src, "@" .. path)
     if not fn then
         warn("[NOVA] compile fail: " .. path .. " :: " .. tostring(cerr))
         Cache[path] = FAIL
         return nil
     end
+
     local rok, res = pcall(fn)
     if not rok then
         warn("[NOVA] runtime fail: " .. path .. " :: " .. tostring(res))
         Cache[path] = FAIL
         return nil
     end
-    Cache[path] = res ~= nil and res or FAIL
-    return Cache[path] == FAIL and nil or Cache[path]
+
+    -- res mund të jetë false (modul që kthen false) — ruaje si FAIL vetëm nëse nil
+    if res == nil then
+        warn("[NOVA] module returned nil: " .. path)
+        Cache[path] = FAIL
+        return nil
+    end
+    Cache[path] = res
+    return res
 end
 
 local function Need(path)
@@ -171,15 +218,7 @@ end
 
 -- ===== BUILD =====
 local ok, err = pcall(function()
-local config = loaded["Config.lua"]
-
-if config == nil then
-    error("Config.lua failed to load. Check the download and compilation errors above.")
-end
-
-if type(config) ~= "table" then
-    error("Config.lua returned " .. type(config) .. " instead of a table.")
-end
+    local config     = loaded["Config.lua"]           or error("Config.lua")
     local BuildTheme = loaded["Core/Theme.lua"]        or error("Core/Theme.lua")
     local BuildH     = loaded["Core/Helpers.lua"]      or error("Core/Helpers.lua")
 
